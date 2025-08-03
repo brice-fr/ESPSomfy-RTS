@@ -5,7 +5,7 @@ on: [push, pull_request]
 env:
   ARDUINO_BOARD_MANAGER_ADDITIONAL_URLS: "https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_dev_index.json"
   ARDUINO_CLI_VERSION: "1.2.x"
-  ARDUINO_ESP32_VERSION: "2.0.16"
+  ARDUINO_ESP32_VERSION: "3.0.x"
   PYTHON_VERSION: "3.13"
   ESPTOOL_VERSION: "5.0.2"
   LITTLEFS_VERSION: "v2.11.1"
