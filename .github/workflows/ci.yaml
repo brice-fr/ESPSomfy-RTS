@@ -110,7 +110,7 @@ jobs:
           pip install esptool==${{ env.ESPTOOL_VERSION }}
 
       - name: Install Arduino CLI
-        uses: arduino/setup-arduino-cli@v1
+        uses: arduino/setup-arduino-cli@v2
         with:
           version: ${{ env.ARDUINO_CLI_VERSION }}
 
