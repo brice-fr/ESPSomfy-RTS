@@ -134,7 +134,7 @@ jobs:
       - name: ${{ matrix.name }} Image
         run: |
           python -m esptool --chip ${{ matrix.chip }} \
-            merge_bin -o build/SomfyController.onboard.bin \
+            merge-bin -o build/SomfyController.onboard.bin \
             ${{ matrix.addr_bootloader }} build/SomfyController.ino.bootloader.bin \
             0x8000 build/SomfyController.ino.partitions.bin \
             0x10000 build/SomfyController.ino.bin \
