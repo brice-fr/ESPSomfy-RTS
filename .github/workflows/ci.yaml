@@ -4,16 +4,16 @@ on: [push, pull_request]
 
 env:
   ARDUINO_BOARD_MANAGER_ADDITIONAL_URLS: "https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_dev_index.json"
-  ARDUINO_CLI_VERSION: "0.x"
+  ARDUINO_CLI_VERSION: "1.0.x"
   ARDUINO_ESP32_VERSION: "2.0.10"
-  ARDUINO_JSON_VERSION: "6.21.3"
-  ESPTOOL_VERSION: "4.6"
-  LITTLEFS_VERSION: "v2.5.1"
-  MKLITTLEFS_VERSION: "3.1.0"
+  ARDUINO_JSON_VERSION: "7.4.2"
+  ESPTOOL_VERSION: "5.0.x"
+  LITTLEFS_VERSION: "v2.11.1"
+  MKLITTLEFS_VERSION: "4.0.x"
   PUB_SUB_CLIENT_VERSION: "2.8.0"
-  PYTHON_VERSION: "3.10"
+  PYTHON_VERSION: "3.13"
   SMARTRC_CC1101_VERSION: "2.5.7"
-  WEB_SOCKET_VERSION: "2.4.0"
+  WEB_SOCKET_VERSION: "2.6.1"
 
 jobs:
   littlefs:
@@ -140,7 +140,7 @@ jobs:
             0x290000 SomfyController.littlefs.bin
 
       - name: Upload ${{ matrix.name }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: |
