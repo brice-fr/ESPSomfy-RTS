@@ -18,7 +18,7 @@ env:
 
 jobs:
   includecheck:
-    name: Check #includes
+    name: CheckIncludes
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -44,9 +44,9 @@ jobs:
           arduino-cli lib install SmartRC-CC1101-Driver-Lib@${{ env.SMARTRC_CC1101_VERSION }}
           arduino-cli lib install WebSockets@${{ env.WEB_SOCKET_VERSION }}
       
-      - name: Run the #include check
+      - name: Run the include check
         run: |
-             iwyu -I~/Arduino/libraries -I~/.arduino15/packages/esp32/hardware/esp32/ ~/work/ESPSomfy-RTS/ESPSomfy-RTS/src/*.cpp ~/work/ESPSomfy-RTS/ESPSomfy-RTS/src/*.h      
+             iwyu -I~/Arduino/libraries -I~/.arduino15/packages/esp32/hardware/esp32/ ~/work/ESPSomfy-RTS/ESPSomfy-RTS/*.cpp ~/work/ESPSomfy-RTS/ESPSomfy-RTS/*.h      
   
   littlefs:
     name: LittleFS
