@@ -47,7 +47,7 @@ jobs:
       
       - name: Run the #include check
         run: |
-             iwyu -I~/Arduino/libraries -I~/.arduino15/packages/esp32/hardware/esp32/ src/*.cpp src/*.h      
+             iwyu -I~/Arduino/libraries -I~/.arduino15/packages/esp32/hardware/esp32/ ~/work/ESPSomfy-RTS/ESPSomfy-RTS/src/*.cpp ~/work/ESPSomfy-RTS/ESPSomfy-RTS/src/*.h      
 
              
   littlefs:
