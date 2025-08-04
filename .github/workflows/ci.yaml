@@ -44,6 +44,14 @@ jobs:
           arduino-cli lib install SmartRC-CC1101-Driver-Lib@${{ env.SMARTRC_CC1101_VERSION }}
           arduino-cli lib install WebSockets@${{ env.WEB_SOCKET_VERSION }}
       
+      - name: list the library directory
+        run: |
+             ls ~/Arduino/libraries
+             
+      - name: list the project source directory
+        run: |
+             ls ~/work/ESPSomfy-RTS/ESPSomfy-RTS/*.*      
+
       - name: Run the include check
         run: |
              iwyu -I~/Arduino/libraries -I~/.arduino15/packages/esp32/hardware/esp32/ ~/work/ESPSomfy-RTS/ESPSomfy-RTS/*.cpp ~/work/ESPSomfy-RTS/ESPSomfy-RTS/*.h      
