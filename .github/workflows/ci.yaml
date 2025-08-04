@@ -22,14 +22,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         
       - name: Install IWYU package
         run: |
               sudo apt-get update
               sudo apt-get install -y iwyu
       - name: Install Arduino CLI
-        uses: arduino/setup-arduino-cli@v1
+        uses: arduino/setup-arduino-cli@v2
         with:
           version: ${{ env.ARDUINO_CLI_VERSION }}
 
