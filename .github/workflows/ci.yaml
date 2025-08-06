@@ -17,45 +17,252 @@ env:
 
 
 jobs:
-  includecheck:
+
+  iwyu-check:
     name: CheckIncludes
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-        
-      - name: Install IWYU package
-        run: |
-              sudo apt-get update
-              sudo apt-get install -y iwyu
-      - name: Install Arduino CLI
-        uses: arduino/setup-arduino-cli@v2
-        with:
-          version: ${{ env.ARDUINO_CLI_VERSION }}
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-      - name: Configure Arduino CLI
-        run: |
-          arduino-cli core update-index
-          arduino-cli core install esp32:esp32@${{ env.ARDUINO_ESP32_VERSION }}
-      - name: Configure Arduino Libraries
-        run: |
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          clang \
+          llvm \
+          libclang-dev \
+          libcurl4-openssl-dev \
+          libedit-dev \
+          cmake \
+          python3 \
+          python3-pip \
+          git \
+          wget \
+          xz-utils
+
+    - name: Install Arduino CLI
+      # We use the `arduino/setup-arduino-cli` action to install and
+      # configure the Arduino CLI on the system.
+      uses: arduino/setup-arduino-cli@v1.1.1
+      
+    - name: Set path for Arduino CLI
+      run: |
+        echo "$HOME/bin" >> $GITHUB_PATH
+        
+    - name: Setup Arduino CLI for ESP32
+      run: |
+        arduino-cli config init
+        arduino-cli core update-index
+        # Add ESP32 board manager URL
+        arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+        arduino-cli core update-index
+       
+    - name: Install Arduino cores
+      run: |
+        # Install Arduino ESP32 core (adjust based on your board)
+        arduino-cli core install esp32:esp32
+        
+    - name: Install Arduino Libraries
+      run: |
           arduino-cli lib install ArduinoJson@${{ env.ARDUINO_JSON_VERSION }}
           arduino-cli lib install PubSubClient@${{ env.PUB_SUB_CLIENT_VERSION }}
           arduino-cli lib install SmartRC-CC1101-Driver-Lib@${{ env.SMARTRC_CC1101_VERSION }}
-          arduino-cli lib install WebSockets@${{ env.WEB_SOCKET_VERSION }}
-      
-      - name: list the library directory
-        run: |
-             ls ~/Arduino/libraries
-             
-      - name: list the project source directory
-        run: |
-             ls ~/work/ESPSomfy-RTS/ESPSomfy-RTS/*.*      
+          arduino-cli lib install WebSockets@${{ env.WEB_SOCKET_VERSION }}        
+          # Install any other required libraries (adjust as needed)
+          # arduino-cli lib install "WebServer"
+        
+    - name: Build IWYU from source
+      run: |
+        git clone https://github.com/include-what-you-use/include-what-you-use.git
+        cd include-what-you-use
+        # Get compatible version with installed clang
+        CLANG_VERSION=$(clang --version | head -n1 | sed 's/.*clang version \([0-9]*\).*/\1/')
+        git checkout clang_${CLANG_VERSION}
+        mkdir build && cd build
+        cmake -G "Unix Makefiles" -DCMAKE_PREFIX_PATH=/usr/lib/llvm-${CLANG_VERSION} ..
+        make -j$(nproc)
+        sudo make install
+    - name: Create IWYU mapping file for ESP32
+      run: |
+        cat > esp32_iwyu.imp << 'EOF'
+        # ESP32 Arduino-specific IWYU mappings
+        [
+          { include: ["<Arduino.h>", private, "<Arduino.h>", public] },
+          { include: ["<WString.h>", private, "<Arduino.h>", public] },
+          { include: ["<Stream.h>", private, "<Arduino.h>", public] },
+          { include: ["<Print.h>", private, "<Arduino.h>", public] },
+          { include: ["<Printable.h>", private, "<Arduino.h>", public] },
+          { include: ["<HardwareSerial.h>", private, "<Arduino.h>", public] },
+          
+          # ESP32-specific mappings
+          { include: ["<esp32-hal.h>", private, "<Arduino.h>", public] },
+          { include: ["<esp32-hal-gpio.h>", private, "<Arduino.h>", public] },
+          { include: ["<esp32-hal-uart.h>", private, "<Arduino.h>", public] },
+          { include: ["<esp32-hal-spi.h>", private, "<Arduino.h>", public] },
+          { include: ["<esp32-hal-i2c.h>", private, "<Arduino.h>", public] },
+          { include: ["<esp32-hal-adc.h>", private, "<Arduino.h>", public] },
+          { include: ["<esp32-hal-dac.h>", private, "<Arduino.h>", public] },
+          { include: ["<esp32-hal-pwm.h>", private, "<Arduino.h>", public] },
+          { include: ["<esp32-hal-timer.h>", private, "<Arduino.h>", public] },
+          
+          # FreeRTOS mappings
+          { include: ["<freertos/FreeRTOS.h>", public, "<freertos/FreeRTOS.h>", public] },
+          { include: ["<freertos/task.h>", public, "<freertos/task.h>", public] },
+          { include: ["<freertos/queue.h>", public, "<freertos/queue.h>", public] },
+          { include: ["<freertos/semphr.h>", public, "<freertos/semphr.h>", public] },
+          
+          # ESP-IDF mappings
+          { include: ["<esp_log.h>", public, "<esp_log.h>", public] },
+          { include: ["<esp_system.h>", public, "<esp_system.h>", public] },
+          { include: ["<esp_wifi.h>", public, "<esp_wifi.h>", public] },
+          { include: ["<nvs_flash.h>", public, "<nvs_flash.h>", public] },
+          
+          # WiFi library mappings
+          { include: ["<WiFi.h>", public, "<WiFi.h>", public] },
+          { include: ["<WiFiClient.h>", private, "<WiFi.h>", public] },
+          { include: ["<WiFiServer.h>", private, "<WiFi.h>", public] },
+          { include: ["<WiFiUdp.h>", private, "<WiFi.h>", public] }
+        ]
+        EOF
+        
+    - name: Find ESP32 core paths
+      id: esp32-paths
+      run: |
+        # Find ESP32 core installation
+        ESP32_PACKAGE_PATH=$(find ~/.arduino15/packages/esp32 -name "hardware" | head -1)
+        ESP32_CORE_PATH="${ESP32_PACKAGE_PATH}/esp32"
+        ESP32_VERSION=$(ls ${ESP32_CORE_PATH} | head -1)
+        ESP32_CORE_FULL_PATH="${ESP32_CORE_PATH}/${ESP32_VERSION}"
+        
+        # Find tools path
+        ESP32_TOOLS_PATH=$(find ~/.arduino15/packages/esp32/tools -name "xtensa-esp32-elf-gcc" | head -1)
+        ESP32_COMPILER_PATH=$(dirname $(find ${ESP32_TOOLS_PATH} -name "xtensa-esp32-elf-gcc" | head -1))
+        
+        # ESP-IDF path
+        ESP_IDF_PATH="${ESP32_CORE_FULL_PATH}/tools/sdk/esp32/include"
+        
+        echo "core_path=${ESP32_CORE_FULL_PATH}" >> $GITHUB_OUTPUT
+        echo "compiler_path=${ESP32_COMPILER_PATH}" >> $GITHUB_OUTPUT
+        echo "esp_idf_path=${ESP_IDF_PATH}" >> $GITHUB_OUTPUT
+        echo "version=${ESP32_VERSION}" >> $GITHUB_OUTPUT
+        
+        echo "ESP32 Core Path: ${ESP32_CORE_FULL_PATH}"
+        echo "Compiler Path: ${ESP32_COMPILER_PATH}"
+        echo "ESP-IDF Path: ${ESP_IDF_PATH}"
 
-      - name: Run the include check
-        run: |
-             iwyu -I~/Arduino/libraries -I~/.arduino15/packages/esp32/hardware/esp32/ ~/work/ESPSomfy-RTS/ESPSomfy-RTS/*.cpp ~/work/ESPSomfy-RTS/ESPSomfy-RTS/*.h      
-  
+    - name: Run IWYU on ESP32 source files
+      run: |
+        # Create a script to run IWYU with proper ESP32 includes
+        cat > run_iwyu.sh << 'EOF'
+        #!/bin/bash
+        
+        CORE_PATH="${{ steps.esp32-paths.outputs.core_path }}"
+        COMPILER_PATH="${{ steps.esp32-paths.outputs.compiler_path }}"
+        ESP_IDF_PATH="${{ steps.esp32-paths.outputs.esp_idf_path }}"
+        ESP32_VERSION="${{ steps.esp32-paths.outputs.version }}"
+        
+        # ESP32-specific compiler flags
+        ESP32_FLAGS=(
+          -DESP32
+          -DCORE_DEBUG_LEVEL=0
+          -DARDUINO=10819
+          -DARDUINO_ESP32_DEV
+          -DARDUINO_ARCH_ESP32
+          -DARDUINO_BOARD=\"ESP32_DEV\"
+          -DARDUINO_VARIANT=\"esp32\"
+          -DESP32
+          -DCONFIG_IDF_TARGET_ESP32=1
+          -DF_CPU=240000000L
+          -DCONFIG_FREERTOS_UNICORE=false
+          -DCONFIG_ARDUINO_LOOP_STACK_SIZE=8192
+          -std=gnu++11
+          -fno-exceptions
+          -fno-rtti
+          -I"${CORE_PATH}/cores/esp32"
+          -I"${CORE_PATH}/variants/esp32"
+        )
+        
+        # Add ESP-IDF include paths
+        if [ -d "${ESP_IDF_PATH}" ]; then
+          for dir in $(find "${ESP_IDF_PATH}" -maxdepth 1 -type d); do
+            if [ -d "${dir}/include" ]; then
+              ESP32_FLAGS+=(-I"${dir}/include")
+            fi
+          done
+        fi
+        
+        # Add library include paths
+        LIBRARIES_PATH="${CORE_PATH}/libraries"
+        if [ -d "${LIBRARIES_PATH}" ]; then
+          for lib in $(find "${LIBRARIES_PATH}" -maxdepth 1 -type d -name "*"); do
+            if [ -d "${lib}/src" ]; then
+              ESP32_FLAGS+=(-I"${lib}/src")
+            fi
+          done
+        fi
+        
+        echo "Using ESP32 flags: ${ESP32_FLAGS[@]}"
+        
+        # Find all .cpp and .ino files (convert .ino to .cpp for analysis)
+        find . -name "*.ino" -exec cp {} {}.cpp \;
+        
+        # Run IWYU on all C++ source files
+        find . \( -name "*.cpp" -o -name "*.cc" -o -name "*.cxx" \) -not -path "./include-what-you-use/*" | while read file; do
+          echo "Analyzing: $file"
+          include-what-you-use \
+            "${ESP32_FLAGS[@]}" \
+            -Xiwyu --mapping_file=esp32_iwyu.imp \
+            -Xiwyu --verbose=1 \
+            -Xiwyu --cxx17ns \
+            "$file" 2>&1 | tee -a iwyu_output.txt || true
+        done
+        
+        # Clean up temporary .ino.cpp files
+        find . -name "*.ino.cpp" -delete
+        EOF
+        
+        chmod +x run_iwyu.sh
+        ./run_iwyu.sh
+
+    - name: Process IWYU results
+      run: |
+        if [ -f iwyu_output.txt ]; then
+          echo "## IWYU Analysis Results for ESP32" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat iwyu_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          
+          # Check if there are any suggestions
+          if grep -q "should add these lines:" iwyu_output.txt || grep -q "should remove these lines:" iwyu_output.txt; then
+            echo "⚠️ IWYU found include optimization suggestions for ESP32 project" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract and display suggestions more clearly
+            echo "## Suggestions Summary" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -A 10 -B 2 "should add these lines:\|should remove these lines:" iwyu_output.txt | head -50 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            
+            exit 1
+          else
+            echo "✅ No include issues found in ESP32 project" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "No IWYU output generated" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Upload IWYU results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: iwyu-esp32-results
+        path: iwyu_output.txt
+        retention-days: 30
+        
+ 
   littlefs:
     name: LittleFS
     runs-on: ubuntu-latest
